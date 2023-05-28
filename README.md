@@ -1,36 +1,33 @@
-# picopico
+# cmsis-rp2040
 
-CMSIS Pico environment template
+CMSIS Pico (RP2040) project temp.
 
-## Setup environment
+Self-enclosed build system - only requires powershell, which can be installed on linux these days. This is used as its particularly useful for bootstrapping build dependencies (vcpkg for compilers and build tools)
 
-bootstrap vcpkg into environment and pull dependencies
+## Usage
+
+This template initially contains a simple blink program that you can run on your Pico to ensure
+everything works as expected. Requires powershell and git.
+
+- Pull all submodules - this will provide a local instance of the latest [pico-sdk](https://github.com/raspberrypi/pico-sdk).
 
 ```bash
-.\vcpkg\bootstrap-vcpkg.sh
-.\vcpkg\vcpkg activate
+git submodule update --init --recursive
 ```
 
-### vscode environment
+- Build the example program using the buildgen powershell script
 
-in a vscode environment, install ARM CMSIS csolution. ninja is also used as a dependency as it is used by the extension.
+```bash
+powershell .\buildgen.ps1
+```
 
-## deps
+Your UF2 output file is now avialable in ./build/Debug/picopico.uf2 (fix later)
 
-### vcpkg
+## WIP
 
-vcpkg is included as a submodule, and is used to pull in various arm build dependencies (arm gcc & arm target for pico).
+- output is not fully adaptable - project name is hardcoded in parts and you cannot choose between build and release.
+- more testing is required with the CMSIS core parts. I would assume they work fine?
 
-vcpkg is licensed under the [MIT License](./vcpkg/LICENSE.txt).
+## Licenses
 
-### packs
-
-### pico sdk
-
-pico sdk is included as a submodule, and provides interface for pico.
-
-pico sdk [License](./pico-sdk/LICENSE.TXT)
-
-## License
-
-This is licensed under the [Apache 2.0 License](./LICENSE).
+This code is licensed under the [Apache 2.0 License](./LICENSE).
