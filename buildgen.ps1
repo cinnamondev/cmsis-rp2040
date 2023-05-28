@@ -23,17 +23,27 @@ csolution -s $SOLUTION list packs -m > "${BTMP}/packs.txt"
 csolution convert -s $SOLUTION -o $BTARGETS
 cbuildgen cmake "${BTARGETS}/picopico.Debug+Device.cprj" --intdir "${BDIR}/${MODE}/" --outdir "${BDIR}/${MODE}/out/"
 Set-Location "${BDIR}/${MODE}"
-
+<#
 # Hijack CMake and insert Pico SDK
 (Get-Content "CMakeLists.txt") | 
     Foreach-Object {
         $_
         if ($_ -match 'cmake_minimum_required\(.+\)') {
-            Write-Output "
+            "
 include(${_T}/pico-sdk/external/pico_sdk_import.cmake)
-pico_sdk_init()".Replace('\','/')
+pico_sdk_init()
+".Replace('\','/')
         }
     } | Set-Content "CMakeLists.txt"
+#>
+(Get-Content "CMakeLists.txt") -replace 'project\(.+\)', 'project(${TARGET} LANGUAGES C CXX ASM)' | Set-Content "CMakeLists.txt"
+$append = 
+"include(${_T}/pico-sdk/external/pico_sdk_import.cmake)
+pico_sdk_init()
+target_link_libraries(`${TARGET} pico_stdlib)
+pico_add_extra_outputs(`${TARGET})
+".Replace('\','/')
+Add-Content "CMakeLists.txt" $append 
 
 $Env:PICO_SDK_PATH = "${_T}/pico-sdk"
 cmake -GNinja -B . 
