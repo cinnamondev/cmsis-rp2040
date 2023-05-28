@@ -1,0 +1,25 @@
+solution:
+
+  compiler: GCC
+  misc:                                       # toolchain specific settings
+    - for-compiler: GCC
+      C:
+        - -std=gnu11
+      Link:
+        - --specs=nano.specs
+        - --specs=rdimon.specs
+  projects:
+    - project: ./picopico.cproject.yaml
+  target-types:
+    - type: Device
+      device: ARM::ARMCM0P
+  build-types:
+    - type: Debug
+      optimize: none
+      debug: on
+
+    - type: Release
+      optimize: none
+      debug: off
+  packs:
+    - pack: ARM::CMSIS@5.9.0

@@ -1,0 +1,6 @@
+project:
+
+  groups:
+    - group: Source
+      files:
+        - file: ./src/main.c
