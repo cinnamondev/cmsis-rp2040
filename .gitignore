@@ -34,3 +34,4 @@
 RTE/
 build/
 .clangd
+.vscode/

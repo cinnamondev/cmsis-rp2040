@@ -26,6 +26,7 @@ Your UF2 output file is now avialable in ./build/Debug/picopico.uf2 (fix later)
 ## CMSIS-Toolbox
 
 This project makes use of the CMSIS-Toolbox (ctools). After running the build script, they will be available within that local environment (ie: the terminal it was executed in). If you want easy access to the build tools (ctools, arm gcc, etc...), you can execute `powershell .\bootstrap.ps1` to bootstrap them (they are cached by vcpkg).
+
 ## WIP
 
 - output is not fully adaptable - project name is hardcoded in parts and you cannot choose between build and release.
