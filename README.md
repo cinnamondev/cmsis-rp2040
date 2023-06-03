@@ -32,6 +32,8 @@ This project makes use of the CMSIS-Toolbox (ctools). After running the build sc
 - output is not fully adaptable - project name is hardcoded in parts and you cannot choose between build and release.
 - more testing is required with the CMSIS core parts. I would assume they work fine?
 
+- vscode: clangd linking automatic - `.clangd` can be generated in the project root by CMSIS extension, but it will target the wrong location for this setup. this can be resolved via symlinks, or manually editing `.clangd` to point to `./build/{project}/{release}/out`. buildgen could have a flag to generate this for us so we dont have to manually edit it.
+
 ## Licenses
 
 This code is licensed under the [Apache 2.0 License](./LICENSE).

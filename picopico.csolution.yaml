@@ -1,7 +1,7 @@
 solution:
 
   compiler: GCC
-  misc:                                       # toolchain specific settings
+  misc:     # toolchain specific settings
     - for-compiler: GCC
       C:
         - -std=gnu11
@@ -23,3 +23,5 @@ solution:
       debug: off
   packs:
     - pack: ARM::CMSIS@5.9.0
+    - pack: LVGL::lvgl@8.3.7
+    - pack: GorgonMeducer::perf_counter@2.1.0

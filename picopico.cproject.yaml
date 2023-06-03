@@ -1,9 +1,22 @@
 project:
-  packs:
-    - pack: ARM::CMSIS@5.9.0
+  setups:
+    - setup: picopico lvgl demo setup
+      define:
+        - LV_CONF_INCLUDE_SIMPLE=1
+
   components:
     - component: CMSIS:CORE
+    - component: LVGL::LVGL&LVGL:lvgl:Essential@8.3.7
+    - component: LVGL::LVGL&LVGL:lvgl:Libs GIF@8.3.7
+    - component: LVGL::LVGL&LVGL:lvgl:Porting@8.3.7
+    - component: LVGL::LVGL&LVGL:lvgl:Demo:Widgets@8.3.7
+    - component: LVGL::LVGL&LVGL:lvgl:Extra Themes@8.3.7
+    - component: LVGL::LVGL&LVGL:lvgl:GPU Arm-2D@1.2.2
+    - component: GorgonMeducer::Utilities:perf_counter:Core&Library@2.1.0
   groups:
     - group: Source
       files:
         - file: ./src/main.c
+    - group: Display
+      files:
+        - file: ./src/ili9341.c
