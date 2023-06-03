@@ -1,7 +1,8 @@
 solution:
 
   compiler: GCC
-  misc:     # toolchain specific settings
+  misc:
+    # toolchain specific settings
     - for-compiler: GCC
       C:
         - -std=gnu11

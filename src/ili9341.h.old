@@ -57,6 +57,7 @@ enum rotation_t {
     R270F = MADCTL_MV|MADCTL_MX,
 };
 
+
 struct ili9341_cfg_t {
     uint8_t rx;
     uint8_t tx;
