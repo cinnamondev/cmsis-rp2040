@@ -76,7 +76,7 @@ struct ili9341_cfg_t {
 
 void ili9341_init(void);
 /* Initialize low level display driver */
-void lv_ili9341_init(lv_disp_drv_t* disp);
+void lv_ili9341_init(void);
 
 /* Enable updating the screen (the flushing process) when disp_flush() is called by LVGL
  */
@@ -92,7 +92,7 @@ void ili9341_write();
 void ili9341_write_blk();
 void ili9341_read();
 
-
+void ili9341_init(void);
 
 void ili9341_rotate(enum rotation_t r); // See ROTATE_ symbols.
 
@@ -103,12 +103,16 @@ void ili9341_param(uint8_t param);
 void ili9341_cmd_p(uint8_t cmd, uint8_t param);
 void ili9341_cmd_params(uint8_t cmd, int n,...);
 
-void lv_ili9341_init(lv_disp_drv_t* disp);
 void configure_ili9341(struct ili9341_cfg_t cfg);
 void ili9341_rotate(enum rotation_t r);
 
 void ili9341_sw_res();
 void ili9341_hw_res();
+
+void ili9341_pixel(int x, int y, uint16_t color);
+void ili9341_bmp(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t *bitmap);
+
+void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t* params);
 /**********************
  *      MACROS
  **********************/
@@ -116,4 +120,3 @@ void ili9341_hw_res();
 #ifdef __cplusplus
 } /*extern "C"*/
 #endif
-
