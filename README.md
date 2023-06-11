@@ -1,15 +1,21 @@
 # cmsis-rp2040
+Pico/RP2040 project template. Allows use of the Open-CMSIS-Pack tools (csolutions, software packs, etc...)  with the Pico SDK with little additional work.
 
-CMSIS Pico (RP2040) project temp.
+# Dependencies
 
-Self-enclosed build system - only requires powershell, which can be installed on linux these days. This is used as its particularly useful for bootstrapping build dependencies (vcpkg for compilers and build tools)
+- Powershell
+- [pico-sdk](https://github.com/raspberrypi/pico-sdk) (submodule)
+
+Powershell (5.1 or so should be fine, works with the version installed on Windows 11). Everything else (compilers, etc...) will be installed by a bootstrapped `vcpkg`. This removes the need to install the ARM GCC compiler, Open-CMSIS-Pack ctools/[devtools](https://github.com/Open-CMSIS-Pack/devtools), cmake or ninja - at least within the build environment. If you need to access them quickly a second script is provided, `bootstrap.ps1` which will install all the same build tools. The Open-CMSIS-Pack suite is licensed under Apache 2.0 and is suitable for any FOSS application!
+
+[Powershell](https://github.com/PowerShell/PowerShell) is now a crossplatform tool and this should work just about fine on linux - though this has not been properly tested yet. Powershell is licensed under the MIT license.
 
 ## Usage
 
 This template initially contains a simple blink program that you can run on your Pico to ensure
 everything works as expected. Requires powershell and git.
 
-- Pull all submodules - this will provide a local instance of the latest [pico-sdk](https://github.com/raspberrypi/pico-sdk).
+- Pull all submodules - this will provide the latest [pico-sdk](https://github.com/raspberrypi/pico-sdk) and its submodules.
 
 ```bash
 git submodule update --init --recursive
@@ -18,19 +24,19 @@ git submodule update --init --recursive
 - Build the example program using the buildgen powershell script
 
 ```bash
-powershell .\buildgen.ps1
+powershell .\buildgen.ps1 -BuildTarget Debug -TargetProject picopico 
 ```
+You can link additional parts of the pico sdk using the argument `-link_libs a,b,c,d`
+The resulting uf2 file will be availalbe in ./build/debug/{project name}.uf2 !
 
-Your UF2 output file is now avialable in ./build/Debug/picopico.uf2 (fix later)
+### Additional demos / templates 
 
-## CMSIS-Toolbox
-
-This project makes use of the CMSIS-Toolbox (ctools). After running the build script, they will be available within that local environment (ie: the terminal it was executed in). If you want easy access to the build tools (ctools, arm gcc, etc...), you can execute `powershell .\bootstrap.ps1` to bootstrap them (they are cached by vcpkg).
-
+[demo-lvgl](https://github.com/cinnamondev/cmsis-rp2040/tree/demo-lvgl) provides a template for a LVGL project, with an included driver for the ILI9341.
 ## WIP
 
-- output is not fully adaptable - project name is hardcoded in parts and you cannot choose between build and release.
-- more testing is required with the CMSIS core parts. I would assume they work fine?
+- don't believe the script is actually yet capable of pulling the packs by itself- they should be preinstalled first (for now)
+- debug stuff
+
 
 ## Licenses
 
