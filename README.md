@@ -34,8 +34,9 @@ The resulting uf2 file will be availalbe in ./build/debug/{project name}.uf2 !
 [demo-lvgl](https://github.com/cinnamondev/cmsis-rp2040/tree/demo-lvgl) provides a template for a LVGL project, with an included driver for the ILI9341.
 ## WIP
 
-- don't believe the script is actually yet capable of pulling the packs by itself- they should be preinstalled first (for now)
-- debug stuff
+
+- debug mode (picoprobe)
+- input sanitize
 
 
 ## Licenses
