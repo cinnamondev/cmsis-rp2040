@@ -21,6 +21,7 @@ param (
     $BuildTarget = "Debug",
     [string]
     $TargetProject = ""
+
 )
 
 # bootstrap vcpkg & activate build environment
@@ -34,19 +35,24 @@ if(!$SOLUTION) {$SOLUTION = @(Get-ChildItem -Filter "*.csolution.yml")[0]}
 # All projects matching name in csolution
 $int_ttypes = $false
 $Type = "Device" # use project default as a fallback
-$_Projects =
-(Get-Content $SOLUTION) | ForEach-Object {
-    if ($_ -match "- project: ((.*[\\\/])(.+).cproject.yaml)") {
-        if($Matches.3 -eq $TargetProject) {
-            [System.Tuple]::Create($Matches.3,$Matches.2,$Matches.1)
+$_Projects = # Support for file path as target project (vscode cmsis integ.)
+if($TargetProject -match "((.*[\\\/])(.+).cproject.yaml)") {
+    [System.Tuple]::Create($Matches.3,$Matches.2,$Matches.1)
+} else {
+    (Get-Content $SOLUTION) | ForEach-Object {
+        if ($_ -match "- project: ((.*[\\\/])(.+).cproject.yaml)") {
+            if($Matches.3 -eq $TargetProject) {
+                [System.Tuple]::Create($Matches.3,$Matches.2,$Matches.1)
+            }
+        }
+        if ($_ -match "target-types:") {$int_ttypes = $true}
+        if ($_ -match "- type: (.+)" -and $int_ttypes) {
+            $int_ttypes = $false
+            $Type =  $Matches.1
         }
     }
-    if ($_ -match "target-types:") {$int_ttypes = $true}
-    if ($_ -match "- type: (.+)" -and $int_ttypes) {
-        $int_ttypes = $false
-        $Type =  $Matches.1
-    }
 }
+
 if ($_Projects.Count -ne 1) {
     if($_Projects.Count -eq 0) {Write-Error "Could not find the target project in the csolution."} 
     else {Write-Error "You have duplicate projects of the same name in your csolution."}
@@ -65,6 +71,7 @@ $PROJECTDIR ="${_T}/build/${Project_Name}"
 $TARGETDIR = "${_T}/build/${Project_Name}/${BuildTarget}"
 $OUTPUTDIR = "${_T}/build/${Project_Name}/${BuildTarget}/out"
 
+
 # ensure build directories exist
 if (!((Test-Path $OUTPUTDIR) -and (Test-Path $TEMPDIR))) {
     New-Item -Path $BUILDDIR -ItemType Directory
@@ -77,7 +84,8 @@ if (!((Test-Path $OUTPUTDIR) -and (Test-Path $TEMPDIR))) {
 
 # Get missing packages
 csolution -s $SOLUTION list packs -m > "${TEMPDIR}/packs.txt"
-
+# TODO: delete $PROJECTDIR files if packs.txt was not empty.
+cpackget add -f "${TEMPDIR}/packs.txt"
 # Create *.CPRJ targets
 csolution convert -s $SOLUTION -o $TEMPDIR
 # Create CMakeList for target project
@@ -85,18 +93,30 @@ cbuildgen cmake "${TEMPDIR}/${Project_Name}.${BuildTarget}+${Type}.cprj" --intdi
 
 # Build with CMake + Ninja
 Set-Location $OUTPUTDIR
-(Get-Content "CMakeLists.txt") -replace 'project\(.+\)', 'project(${TARGET} LANGUAGES C CXX ASM)' | Set-Content "CMakeLists.txt"
 
-$append = 
-"include(${_T}/pico-sdk/external/pico_sdk_import.cmake)
-pico_sdk_init()
+# Hijack CMake and insert Pico SDK
+(Get-Content "CMakeLists.txt") | 
+    Foreach-Object {
+        $_
+        if ($_ -match 'cmake_minimum_required\(.+\)') {
+            Write-Output "
+include(${_T}/pico_sdk_import.cmake)".Replace('\','/')
+        }
+        if ($_ -match 'project\(.+\)') {
+            Write-Output "project(`${TARGET} CXX ASM)
+pico_sdk_init()"
+        }
+    } | Set-Content "CMakeLists.txt"
+
+$append = "pico_enable_stdio_usb(`${TARGET} 1)
+pico_enable_stdio_uart(`${TARGET} 0)
 target_link_libraries(`${TARGET} pico_stdlib ${link_libs})
 pico_add_extra_outputs(`${TARGET})
 ".Replace('\','/')
 Add-Content "CMakeLists.txt" $append 
 
-$env:PICO_SDK_PATH = "${_T}/pico-sdk"
+$Env:PICO_SDK_PATH = "${_T}/pico-sdk"
 
 cmake -GNinja -B . 
-ninja
+ninja 
 Set-Location $_T
