@@ -83,9 +83,10 @@ if (!((Test-Path $OUTPUTDIR) -and (Test-Path $TEMPDIR))) {
 
 
 # Get missing packages
-csolution -s $SOLUTION list packs -m > "${TEMPDIR}/packs.txt"
-# TODO: delete $PROJECTDIR files if packs.txt was not empty.
-cpackget add -f "${TEMPDIR}/packs.txt"
+foreach($l in (csolution -s $SOLUTION list packs -m)) {
+    Write-Host "[BUILDGEN] Installing CMSIS-Pack: "$l
+    cpackget pack add $l
+}
 # Create *.CPRJ targets
 csolution convert -s $SOLUTION -o $TEMPDIR
 # Create CMakeList for target project
