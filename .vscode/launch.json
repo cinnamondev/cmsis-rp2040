@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Buildgen & Debug (picopico)",
+            "cwd": "${workspaceRoot}",
+            "executable": "./build/picopico/Debug/out/picopico.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            // This may need to be "arm-none-eabi-gdb" for some previous builds
+            "gdbPath" : "arm-none-eabi-gdb",
+            "device": "RP2040",
+            "configFiles": [
+                // This may need to be "interface/picoprobe.cfg" for some previous builds
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg",
+                "./openocd.cfg"
+            ],
+            "svdFile": "./pico-sdk/src/rp2040/hardware_regs/rp2040.svd",
+            "runToEntryPoint": "main",
+            // Work around for stopping at main on restart
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ],
+            //"preLaunchTask": "Buildgen-Bootstrapper",
+            // Builds new elf, hex, uf2, etc... before debug session.
+            "preLaunchTask": "Buildgen: Build [DEBUG]",
+        },
+        {
+            "name": "Pico Debug (picopico)",
+            "cwd": "${workspaceRoot}",
+            "executable": "./build/picopico/Debug/out/picopico.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "gdbPath" : "arm-none-eabi-gdb",
+            "device": "RP2040",
+            "configFiles": [
+                // This may need to be "interface/picoprobe.cfg" for some previous builds
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg",
+                "./openocd.cfg"         // openocd.cfg ensures we are running at high speeds.
+            ],
+            "svdFile": "./pico-sdk/src/rp2040/hardware_regs/rp2040.svd",
+            "runToEntryPoint": "main",
+            // Work around for stopping at main on restart
+            "postRestartCommands": [
+                "break main",
+                "continue"
+            ],
+            "preLaunchTask": "Buildgen-Bootstrapper", // Bootstrapper is required for gdb.
+            //"preLaunchTask": "Buildgen: Build [DEBUG]",
+        },
+    ]
+}

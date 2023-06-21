@@ -95,6 +95,8 @@ cbuildgen cmake "${TEMPDIR}/${Project_Name}.${BuildTarget}+${Type}.cprj" --intdi
 # Build with CMake + Ninja
 Set-Location $OUTPUTDIR
 
+$env:PICO_SDK_PATH = "${_T}/pico-sdk"       # set pico sdk path
+
 # Hijack CMake and insert Pico SDK
 (Get-Content "CMakeLists.txt") | 
     Foreach-Object {
@@ -115,8 +117,6 @@ target_link_libraries(`${TARGET} pico_stdlib ${link_libs})
 pico_add_extra_outputs(`${TARGET})
 ".Replace('\','/')
 Add-Content "CMakeLists.txt" $append 
-
-$Env:PICO_SDK_PATH = "${_T}/pico-sdk"
 
 cmake -GNinja -B . 
 ninja 
