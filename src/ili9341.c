@@ -168,13 +168,13 @@ static lv_color_t lv_buf_1[BUFFER_SIZE];
 static lv_color_t lv_buf_2[BUFFER_SIZE];
 
 static struct ili9341_cfg_t ili_cfg = {    // Default assignments:
-    .iface = spi0,                  // Use SPI1 interface
-    .rx  = 4,                       // SPI_RX / MISO
-    .tx  = 3,                       // SPI_TX / MOSI
-    .sck = 2,                       // SPI_SCK / SPI CLOCK
-    .dc  = 7,                       // DC (data select): low for dat high reg.
-    .cs  = 5,                       // Chip select, active low.
-    .resx= 6,                       // Chip reset, active low.
+    .iface = spi1,                  // Use SPI1 interface
+    .rx  = 12,                       // SPI_RX / MISO
+    .tx  = 11,                       // SPI_TX / MOSI
+    .sck = 10,                       // SPI_SCK / SPI CLOCK
+    .dc  = 15,                       // DC (data select): low for dat high reg.
+    .cs  = 13,                       // Chip select, active low.
+    .resx= 14,                       // Chip reset, active low.
     .crot= R90F,
 };                                  // change prior to lv_ili9341_init
                                     // to use different assignments.
@@ -196,10 +196,6 @@ static struct ili9341_cfg_t ili_cfg = {    // Default assignments:
                         asm volatile("nop\nnop\nnop")
 
 #define SPI_WAIT_FREE() while(spi_is_busy(ili_cfg.iface)) {}
-
-#define SET_TRANSFER_HWORD() spi_set_format(ili_cfg.iface, 16, SPI_CPOL_1,SPI_CPHA_1,SPI_MSB_FIRST);
-#define SET_TRANSFER_BYTE() spi_set_format(ili_cfg.iface, 8, SPI_CPOL_1,SPI_CPHA_1,SPI_MSB_FIRST);
-
 
 
 /**********************
@@ -239,6 +235,10 @@ inline void ili9341_cmd_p(uint8_t cmd, uint8_t param) {
     ili9341_param(param);
 }
 
+inline void ili9341_write_px(uint16_t px) {
+    SPI_WAIT_FREE();
+    ili_write_hword(&px);
+}
 /**
  * @brief Simultaneously sends a command and its subsequent parameters.
  * 
@@ -267,15 +267,36 @@ void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t* params) {
     CS_DESELECT();
 }
 
-void ili9341_bmp(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t *bitmap) {
-    ili_addr_win(x0,y0,x1,y1);
-    SET_TRANSFER_HWORD();
-    gpio_put(ili_cfg.dc,1);
+/**
+ * @brief Write image data to specifed area in frame memory.
+ * 
+ * @param _x1 Column Start
+ * @param _y1 Column End
+ * @param _x2 Row Start
+ * @param _y2 Row End
+ * @param bitmap Image to write (RGB565 format)
+ *
+ * @warning Handler must be set before calling (ie: dma_tx_isr, lv_dma_tx_isr).
+ */
+void ili9341_bmp(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2, uint16_t *bitmap) {
+
+    // prevent OOB (negative or >=240/320 coords.)
+    uint16_t x1 = _x1 < 0 ? 0 : _x1;
+    uint16_t y1 = _y1 < 0 ? 0 : _y1;
+    uint16_t x2 = _x2 > ILI9341_HOR - 1 ? ILI9341_HOR - 1 : _x2;
+    uint16_t y2 = _y2 > ILI9341_VER - 1 ? ILI9341_VER - 1 : _y2;
+    SPI_WAIT_FREE();
+    ili_addr_win(x1,y1,x1,y1);
     CS_SELECT();
-    spi_write16_blocking(ili_cfg.iface, bitmap, (x1-x0)*(y1-y0));
-    CS_DESELECT();
-    gpio_put(ili_cfg.dc,0);
-    SET_TRANSFER_BYTE();
+    // Set new write address and send data off
+    dma_channel_configure(DMA_TX, &DMA_TX_CFG,
+        &spi_get_hw(ili_cfg.iface)->dr,
+		bitmap,
+		(x2-x1+1)*(y2-y1+1)*2,
+		false
+    );						// start asap
+    dma_channel_set_irq1_enabled(DMA_TX, true);
+    dma_channel_start(DMA_TX);
 }
 
 void ili9341_pixel(int x, int y, uint16_t color) {
@@ -353,6 +374,11 @@ void lv_ili9341_init(void) {
 
 }
 
+void ili_config(struct ili9341_cfg_t* spi_cfg, void (*isr)()) {
+    ili_cfg = *spi_cfg;
+    irq_set_exclusive_handler(DMA_IRQ_1, isr);
+}
+
 /**
  * @brief Initialize the ILI9341 chip, according to ili_cfg.
  * 
@@ -368,7 +394,7 @@ void ili9341_init(void) {
     gpio_set_function(ili_cfg.sck, GPIO_FUNC_SPI);
 
     spi_init(ili_cfg.iface, 10e6);     // 16 bit spi
-    SET_TRANSFER_BYTE();
+    spi_set_format(ili_cfg.iface, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
     // config CS (active low)
     gpio_init(ili_cfg.cs);
@@ -531,7 +557,7 @@ static inline void ili_write_bytes(uint8_t* payload, int len) {
 
 static inline void ili_write_hword(uint16_t* payload) {
     CS_SELECT();
-    spi_write_blocking(ili_cfg.iface, (uint8_t*)payload, 1);
+    spi_write_blocking(ili_cfg.iface, (uint8_t*)payload, 2);
     CS_DESELECT();
 }
 

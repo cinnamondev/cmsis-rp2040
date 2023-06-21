@@ -45,7 +45,7 @@ void lv_hello_lvgl(void)
 int main() {
     system_init();
     lv_init();
-
+    
     lv_ili9341_init();
     lv_hello_lvgl();
 
