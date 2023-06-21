@@ -202,6 +202,8 @@ static struct ili9341_cfg_t ili_cfg = {    // Default assignments:
  *   GLOBAL FUNCTIONS
  **********************/
 
+/**** COMMAND/SPI *****/
+
 /**
  * @brief Sends a command to the ILI9341.
  * 
@@ -235,37 +237,21 @@ inline void ili9341_cmd_p(uint8_t cmd, uint8_t param) {
     ili9341_param(param);
 }
 
-inline void ili9341_write_px(uint16_t px) {
-    SPI_WAIT_FREE();
-    ili_write_hword(&px);
-}
 /**
- * @brief Simultaneously sends a command and its subsequent parameters.
+ * @brief Send many data/parameters following a command.
  * 
- * @param cmd   Command to execute
- * @param n     Number of parameters to send
- * @param ...   Parameters to send (sequential)
+ * @param cmd Command to send
+ * @param len Number of parameters (bytes)
+ * @param params Parameters to send
  */
-void ili9341_cmd_params(uint8_t cmd, int n,...) {
-    va_list args;
-    va_start(args, n);
-    SPI_WAIT_FREE();
-    ili9341_cmd(cmd);
-
-    CS_SELECT();
-    for(int i=0;i<n;i++) {
-        spi_write_blocking(ili_cfg.iface, va_arg(args, int), 1);
-    }
-    CS_DESELECT();
-    va_end(args);
-}
-
 void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t* params) {
     ili9341_cmd(cmd);
     CS_SELECT();
     spi_write_blocking(ili_cfg.iface, (uint8_t*)params, len);
     CS_DESELECT();
 }
+
+/**** DRAWING     *****/
 
 /**
  * @brief Write image data to specifed area in frame memory.
@@ -274,7 +260,7 @@ void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t* params) {
  * @param _y1 Column End
  * @param _x2 Row Start
  * @param _y2 Row End
- * @param bitmap Image to write (RGB565 format)
+ * @param bitmap color pixel map (rgb565 format)
  *
  * @warning Handler must be set before calling (ie: dma_tx_isr, lv_dma_tx_isr).
  */
