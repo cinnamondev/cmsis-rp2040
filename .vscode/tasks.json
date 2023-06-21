@@ -1,4 +1,5 @@
 {
+    "version": "2.0.0",
     "tasks": [
         {
             "type": "shell",
@@ -27,6 +28,11 @@
             "type": "shell",
             "command": "openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -f ./openocd.cfg -c “program ./build/picopico/Debug/out/picopico.elf verify reset exit”",
             "label": "picopico program",
+        },
+        {
+            "type": "shell",
+            "command": "openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -f ./openocd.cfg -c “init ; reset halt ; rp2040.core1 arp_reset assert 0 ; rp2040.core0 arp_reset assert 0 ; exit”",
+            "label": "picopico reset",
         }
     ]
 }
