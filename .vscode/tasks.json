@@ -1,0 +1,32 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "command": "powershell",
+            "label": "Buildgen: Build [DEBUG]",
+            "args": [
+                "./buildgen.ps1",
+                "-BuildTarget ${command:cmsis-csolution.getBuildType}",
+                "-TargetProject picopico",
+                "-link_libs cmsis_core,hardware_spi,hardware_dma,hardware_irq" // user insert here :)
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "command": "powershell",
+            "label": "Buildgen-Bootstrapper",
+            "args": [
+                "./bootstrap.ps1",
+            ]
+        },
+        {
+            "type": "shell",
+            "command": "openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -f ./openocd.cfg -c “program ./build/picopico/Debug/out/picopico.elf verify reset exit”",
+            "label": "picopico program",
+        }
+    ]
+}

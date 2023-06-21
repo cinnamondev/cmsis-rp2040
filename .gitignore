@@ -34,4 +34,4 @@
 RTE/
 build/
 .clangd
-.vscode/
+.vscode/settings.json
