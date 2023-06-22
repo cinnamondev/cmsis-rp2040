@@ -2,7 +2,7 @@ project:
   setups:
     - setup: picopico lvgl demo setup
       define:
-        - LV_CONF_INCLUDE_SIMPLE=1
+        - LV_CONF_INCLUDE_SIMPLE
 
   components:
     - component: CMSIS:CORE
@@ -16,6 +16,5 @@ project:
     - group: Source
       files:
         - file: ./src/main.c
-    - group: Display
-      files:
         - file: ./src/ili9341.c
+
