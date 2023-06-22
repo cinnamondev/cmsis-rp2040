@@ -185,14 +185,18 @@ static struct ili9341_cfg_t ili_cfg = {    // Default assignments:
  *      MACROS
  **********************/
 
-#define CS_SELECT()     asm volatile("nop\nnop\nnop");\
+// CSH is 40ns. if you have a faster (up to 133mhz) clock, then this MIGHT
+// be too little. If you are running at a low clock, then this might be too
+// sloppy.
+
+#define CS_SELECT()     asm volatile("nop\nnop\nnop\nnop\nnop");\
                         gpio_put(ili_cfg.cs,0);\
-                        asm volatile("nop\nnop\nnop")
+                        asm volatile("nop\nnop\nnop\nnop\nnop")
 
 
-#define CS_DESELECT()   asm volatile("nop\nnop\nnop");\
+#define CS_DESELECT()   asm volatile("nop\nnop\nnop\nnop\nnop");\
                         gpio_put(ili_cfg.cs,1);\
-                        asm volatile("nop\nnop\nnop")
+                        asm volatile("nop\nnop\nnop\nnop\nnop")
 
 #define SPI_WAIT_FREE() while(spi_is_busy(ili_cfg.iface)) {}
 
@@ -308,7 +312,7 @@ void ili9341_hw_res() {
  * along the new axis.
  */
 void ili9341_rotate(enum rotation_t r) {
-    uint8_t madctr = MADCTL_RGB | r;
+    uint8_t madctr = MADCTL_BGR | r;
     if (r & MADCTL_MV | r==0) {            // off-axis?
         ILI_CUR_HOR=ILI9341_HOR;    // parr. to initial
         ILI_CUR_VER=ILI9341_VER;

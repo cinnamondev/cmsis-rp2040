@@ -12,6 +12,7 @@
 #include "hardware/gpio.h"
 #include "perf_counter.h"
 #include "pico/stdio.h"
+#include "demos/lv_demos.h"
 
 
 void SysTick_Handler(void)
@@ -53,8 +54,8 @@ int main() {
     lv_init();
     
     lv_ili9341_init();
-    lv_hello_lvgl();
-
+    //lv_hello_lvgl();
+    lv_demo_widgets();
     while(1) {
         lv_timer_handler();
     }
