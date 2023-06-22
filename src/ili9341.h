@@ -65,7 +65,6 @@ struct ili9341_cfg_t {
     uint8_t cs;
     uint8_t dc;
     uint8_t resx;
-    enum rotation_t crot;
     spi_inst_t* iface;
 };
 

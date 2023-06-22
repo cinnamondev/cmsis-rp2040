@@ -1,18 +1,18 @@
-#include <stdio.h>
-#include "RP2040.h"
-#include "pico/stdlib.h"
-#include "hardware/gpio.h"
-#include "lvgl.h"
+/**
+ * @file main.c
+ * @brief LVGL Demo ILI9341.
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
+
 #include "ili9341.h"
-#include "pico/time.h"
+#include <stdio.h>
+#include "hardware/gpio.h"
 #include "perf_counter.h"
-#include "src/core/lv_disp.h"
-#include "src/core/lv_obj.h"
-#include "src/core/lv_obj_pos.h"
-#include "src/font/lv_symbol_def.h"
-#include "src/hal/lv_hal_disp.h"
-#include "src/lv_api_map.h"
-#include "src/misc/lv_timer.h"
+#include "pico/stdio.h"
+
 
 void SysTick_Handler(void)
 {
@@ -31,6 +31,9 @@ static void system_init(void)
      */
     init_cycle_counter(false);
     gpio_set_dir(25, GPIO_OUT);
+#ifdef DEBUG
+    stdio_init_all();
+#endif
 }
 
 
@@ -44,6 +47,9 @@ void lv_hello_lvgl(void)
 
 int main() {
     system_init();
+#ifdef DEBUG 
+    printf("hello world!");
+#endif
     lv_init();
     
     lv_ili9341_init();

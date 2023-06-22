@@ -175,7 +175,6 @@ static struct ili9341_cfg_t ili_cfg = {    // Default assignments:
     .dc  = 15,                       // DC (data select): low for dat high reg.
     .cs  = 13,                       // Chip select, active low.
     .resx= 14,                       // Chip reset, active low.
-    .crot= R90F,
 };                                  // change prior to lv_ili9341_init
                                     // to use different assignments.
 
@@ -379,7 +378,11 @@ void ili9341_init(void) {
     gpio_set_function(ili_cfg.tx, GPIO_FUNC_SPI);
     gpio_set_function(ili_cfg.sck, GPIO_FUNC_SPI);
 
-    spi_init(ili_cfg.iface, 10e6);     // 16 bit spi
+    uint speed = spi_init(ili_cfg.iface, 62.5e6);     // 16 bit spi
+    // WE'RE RUNNING THIS BABY AT A MILLION MPH! 
+#ifdef DEBUG
+    printf("spi speed %u", speed);
+#endif
     spi_set_format(ili_cfg.iface, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
     // config CS (active low)
@@ -423,7 +426,7 @@ void ili9341_init(void) {
     ili9341_cmd_p(ILI9341_VCOMC2, 0x86);
 
     // mac / madctl
-    ili9341_rotate(ili_cfg.crot);
+    ili9341_rotate(R90F);
 
     ili9341_cmd_p(ILI9341_PIXEL_FMT, 0x55); // 16b/pixel (rgb565)
 
@@ -515,10 +518,8 @@ void ili9341_init(void) {
  */
 static void irq1_dma_flush_ready() {
     // prevent being stuck in IRQ
-    dma_channel_set_irq1_enabled(DMA_TX, false);
-    gpio_put(25, 1);
-    sleep_ms(200);
-    gpio_put(25, 0);
+    dma_channel_acknowledge_irq1(DMA_TX);
+    //sleep_us(10);
     CS_DESELECT();
     lv_disp_flush_ready(&driver);
 }
