@@ -20,7 +20,9 @@ param (
     [string]
     $BuildTarget = "Debug",
     [string]
-    $TargetProject = ""
+    $TargetProject = "",
+    [switch]
+    $target_usb
 
 )
 
@@ -97,22 +99,30 @@ Set-Location $OUTPUTDIR
 
 $env:PICO_SDK_PATH = "${_T}/pico-sdk"       # set pico sdk path
 
-# Hijack CMake and insert Pico SDK
+
 (Get-Content "CMakeLists.txt") | 
     Foreach-Object {
         $_
         if ($_ -match 'cmake_minimum_required\(.+\)') {
+            # Insert SDK after version
             Write-Output "
 include(${_T}/pico_sdk_import.cmake)".Replace('\','/')
         }
         if ($_ -match 'project\(.+\)') {
+            # Load SDK after project (+ additional languages for SDK)
             Write-Output "project(`${TARGET} CXX ASM)
 pico_sdk_init()"
         }
     } | Set-Content "CMakeLists.txt"
 
-$append = "pico_enable_stdio_usb(`${TARGET} 1)
-pico_enable_stdio_uart(`${TARGET} 0)
+# stdio should redirect to UART by default for use by debugger probe.
+# Setting parameter -target_usb will redirect stdio to usb instead.
+$stdio_usb = If ($target_usb.IsPresent) {1} else {0}
+$stdio_uart = $stdio_usb -bxor 1 
+
+$append = "#Pico SDK Configuration
+pico_enable_stdio_usb(`${TARGET} ${stdio_usb})
+pico_enable_stdio_uart(`${TARGET} ${stdio_uart}) 
 target_link_libraries(`${TARGET} pico_stdlib ${link_libs})
 pico_add_extra_outputs(`${TARGET})
 ".Replace('\','/')

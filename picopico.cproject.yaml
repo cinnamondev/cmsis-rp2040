@@ -1,9 +1,16 @@
 project:
   packs:
     - pack: ARM::CMSIS@5.9.0
+  setups:
+    - setup: picopico lvgl demo setup
+      define:
+        - LV_CONF_INCLUDE_SIMPLE
+
   components:
     - component: CMSIS:CORE
   groups:
     - group: Source
       files:
         - file: ./src/main.c
+        - file: ./src/ili9341.c
+

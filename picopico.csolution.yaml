@@ -17,6 +17,8 @@ solution:
     - type: Debug
       optimize: none
       debug: on
+      define:
+        - DEBUG
 
     - type: Release
       optimize: none
