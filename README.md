@@ -37,3 +37,6 @@ This project makes use of the CMSIS-Toolbox (ctools). After running the build sc
 ## Licenses
 
 This code is licensed under the [Apache 2.0 License](./LICENSE).
+
+
+clang format requires llvm (choco?)

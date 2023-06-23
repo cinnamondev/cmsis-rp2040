@@ -7,7 +7,7 @@
  */
 
 
-#include "ili9341.h"
+#include "display/ili9341.h"
 #include <stdio.h>
 #include "hardware/gpio.h"
 #include "perf_counter.h"
@@ -54,6 +54,7 @@ int main() {
     lv_init();
     
     lv_ili9341_init();
+    ili9341_cmd_p(ILI9341_W_BRIGHT, 255);
     //lv_hello_lvgl();
     lv_demo_widgets();
     while(1) {
