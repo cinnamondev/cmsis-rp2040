@@ -36,4 +36,4 @@
 *.out   binary
 *.app   binary
 
-core.autocrlf=input
+* text=auto
