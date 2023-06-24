@@ -16,5 +16,5 @@ project:
     - group: Source
       files:
         - file: ./src/main.c
-        - file: ./src/ili9341.c
+        - file: ./src/display/ili9341.c
 

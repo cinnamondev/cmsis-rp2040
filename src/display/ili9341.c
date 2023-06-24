@@ -16,6 +16,7 @@
 #include "perf_counter.h"
 #include "pico/platform.h"
 #include "pico/time.h"
+#include "src/draw/lv_draw.h"
 #include "src/hal/lv_hal_disp.h"
 #include "src/misc/lv_color.h"
 #include <stdarg.h>
@@ -26,6 +27,7 @@
  *      DEFINES
  *********************/
 #define BUFFER_SIZE (int)(ILI9341_HOR * ILI9341_VER * 0.1)
+#define LV_ILI_DRV_BLOCKING
 
 /**********************
  *      TYPEDEFS
@@ -92,18 +94,15 @@ static struct ili9341_cfg_t ili_cfg = {
 // sloppy.
 
 #define CS_SELECT()                                                            \
-  asm volatile("nop\nnop\nnop\nnop\nnop");                                     \
   gpio_put(ili_cfg.cs, 0);                                                     \
   asm volatile("nop\nnop\nnop\nnop\nnop")
 
 #define CS_DESELECT()                                                          \
   asm volatile("nop\nnop\nnop\nnop\nnop");                                     \
-  gpio_put(ili_cfg.cs, 1);                                                     \
-  asm volatile("nop\nnop\nnop\nnop\nnop")
+  gpio_put(ili_cfg.cs, 1)
 
 #define SPI_WAIT_FREE()                                                        \
-  while (spi_is_busy(ili_cfg.iface)) {                                         \
-  }
+  while (spi_is_busy(ili_cfg.iface)) {tight_loop_contents()}
 
 /**********************
  *   GLOBAL FUNCTIONS
@@ -179,17 +178,32 @@ void ili9341_bmp(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2,
   uint16_t y1 = _y1 < 0 ? 0 : _y1;
   uint16_t x2 = _x2 > ILI9341_HOR - 1 ? ILI9341_HOR - 1 : _x2;
   uint16_t y2 = _y2 > ILI9341_VER - 1 ? ILI9341_VER - 1 : _y2;
+
   SPI_WAIT_FREE();
-  ili_addr_win(x1, y1, x1, y1);
+  ili_addr_win(x1, y1, x2, y2);
+  // todo: hardware rot ensure.
   CS_SELECT();
-  // Set new write address and send data off
-  dma_channel_configure(DMA_TX, &DMA_TX_CFG, 
-                        &spi_get_hw(ili_cfg.iface)->dr,
-                        bitmap, 
+  dma_channel_configure(DMA_TX, &DMA_TX_CFG,
+                        &spi_get_hw(ili_cfg.iface)->dr, // dest
+                        bitmap,                        
                         (x2-x1+1) * (y2-y1+1) * 2,
-                        false); // start asap
-  dma_channel_set_irq1_enabled(DMA_TX, true);
-  dma_channel_start(DMA_TX);
+                        true); // start asap
+}
+
+/**
+ * @brief Write image data to specifed area in frame memory.
+ * 
+ * @param _x1 Column start
+ * @param _y1 Column end
+ * @param _x2 Row start
+ * @param _y2 Row end
+ * @param bitmap color pixel map (rgb565)
+ */
+void ili9341_bmp_blocking(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2,
+                     uint16_t *bitmap) {
+  ili9341_bmp(_x1, _y1, _x2, _y2, bitmap);
+  dma_channel_wait_for_finish_blocking(DMA_TX);
+  CS_DESELECT();
 }
 
 void ili9341_pixel(int x, int y, uint16_t color) {
@@ -256,10 +270,12 @@ void lv_ili9341_init(void) {
                         BUFFER_SIZE);
   driver.draw_buf = &lv_draw_buf_dsc;
   lv_disp_drv_register(&driver);
+#ifndef LV_ILI_DRV_BLOCKING
   // interrupts from dma will go to irq1_dma_flush_ready
   dma_channel_set_irq1_enabled(DMA_TX, true);
   irq_set_exclusive_handler(DMA_IRQ_1, irq1_dma_flush_ready);
   irq_set_enabled(DMA_IRQ_1, true);
+#endif
 }
 
 /**
@@ -494,27 +510,24 @@ static void ili_flush(lv_disp_drv_t *disp, const lv_area_t *area,
     lv_disp_flush_ready(disp); // prevent dodgy input
     return;
   }
-  // prevent OOB (negative or >=240/320 coords.)
-  uint16_t x1 = area->x1 < 0 ? 0 : area->x1;
-  uint16_t y1 = area->y1 < 0 ? 0 : area->y1;
-  uint16_t x2 = area->x2 > ILI9341_HOR - 1 ? ILI9341_HOR - 1 : area->x2;
-  uint16_t y2 = area->y2 > ILI9341_VER - 1 ? ILI9341_VER - 1 : area->y2;
-
-  SPI_WAIT_FREE();
-  ili_addr_win(x1, y1, x2, y2);
-  // todo: hardware rot ensure.
-  CS_SELECT();
-  dma_channel_configure(DMA_TX, &DMA_TX_CFG,
-                        &spi_get_hw(ili_cfg.iface)->dr, // write address
-                        px_map,                         // read address
-                        (x2 - x1 + 1) * (y2 - y1 + 1) *
-                            2,  //(x2-x1)*(y2-y1)*2,// element count (each
-                                //element is of size transfer_data_size)
-                        false); // start asap
-
-  dma_channel_set_irq1_enabled(DMA_TX, true);
-  dma_channel_start(DMA_TX);
-
-  // This will be called by an interrupt when DMA has flushed.
-  // lv_disp_flush_ready(disp);
+#ifndef LV_ILI_DRV_BLOCKING
+  ili9341_bmp(
+    area->x1, 
+    area->y1, 
+    area->x2, 
+    area->y2, 
+    (uint16_t *)px_map
+  );
+  // lv_ili_dma_handle(); will be called via interrupt.
+  // lv_ili_dma_handle();
+#else
+  ili9341_bmp_blocking(
+    area->x1, 
+    area->y1, 
+    area->x2, 
+    area->y2, 
+    (uint16_t *)px_map
+  );
+  lv_disp_flush_ready(disp);
+#endif
 }

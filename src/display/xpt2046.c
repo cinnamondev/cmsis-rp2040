@@ -24,6 +24,15 @@ static void touchpad_get_xy(lv_coord_t *x, lv_coord_t *y);
 /**********************
  *  STATIC VARIABLES
  **********************/
+struct xpt2046_cfg_t xpt_cfg = {
+  uint8_t rx;
+  uint8_t tx;
+  uint8_t sck;
+  uint8_t cs;
+  uint8_t dc;
+  spi_inst_t *iface;
+};
+
 lv_indev_t *indev_touchpad;
 
 /**********************
