@@ -22,7 +22,9 @@ param (
     [string]
     $TargetProject = "",
     [switch]
-    $target_usb
+    $target_usb,
+    [switch]
+    $NoNinja                    # Ninja seems to cause problems with the toolchain path on linux.
 
 )
 
@@ -128,6 +130,7 @@ pico_add_extra_outputs(`${TARGET})
 ".Replace('\','/')
 Add-Content "CMakeLists.txt" $append 
 
-cmake -GNinja -B . 
+$GeneratorArg = if ($NoNinja) {""} else {"-GNinja"}
+cmake $GeneratorArg -B . 
 ninja 
 Set-Location $_T

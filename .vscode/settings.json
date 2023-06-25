@@ -1,0 +1,21 @@
+{
+  "cmsis-csolution.autoGenerateCprj": true,
+  "cmsis-csolution.autoGenerateClangdFile": false,
+  "C_Cpp_Runner.useMsvc": false,
+  "C_Cpp_Runner.warnings": [
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Wshadow",
+    "-Wformat=2",
+    "-Wconversion",
+    "-Wnull-dereference",
+    "-Wsign-conversion"
+  ],
+  "editor.rulers": [
+    80,
+],
+  "C_Cpp_Runner.showCompilationTime": false,
+  "git.detectSubmodules": false,
+
+}
