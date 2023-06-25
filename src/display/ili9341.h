@@ -139,10 +139,17 @@ enum rotation_t {
   R180 = MADCTL_MX | MADCTL_MY,
   R270 = MADCTL_MV | MADCTL_MY,
   R0F = MADCTL_MX,
-  R90F = MADCTL_MV | MADCTL_MX | MADCTL_MY,
+  R90F = MADCTL_MV | MADCTL_MX | MADCTL_MY,   // normal format
   R180F = MADCTL_MY,
   R270F = MADCTL_MV | MADCTL_MX,
 };
+
+enum ___rotation_t {
+  _R0  = MADCTL_MV | MADCTL_MX | MADCTL_MY,
+  _R270= MADCTL_MX,
+  _R90 = MADCTL_MY,
+  _R180= MADCTL_MV | MADCTL_MX,
+}
 
 struct ili9341_cfg_t {
   uint8_t rx;

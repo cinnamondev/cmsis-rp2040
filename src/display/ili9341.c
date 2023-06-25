@@ -46,13 +46,14 @@ static inline void ili_write_byte(uint8_t payload);
 static inline void ili_write(void *payload, uint16_t len, bool dc);
 static inline void ili_write_dat(void *payload, uint16_t len);
 
-static void ili_addr_win(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 
 static inline void ili_write_hword(uint16_t *payload);
 
 static inline void ili_write_hwords(uint16_t *payload, int len);
 
-static void irq1_dma_flush_ready();
+
+static void lv_ili_flush_irq(void);
+
 
 /**********************
  *  STATIC VARIABLES
@@ -102,13 +103,13 @@ static struct ili9341_cfg_t ili_cfg = {
   gpio_put(ili_cfg.cs, 1)
 
 #define SPI_WAIT_FREE()                                                        \
-  while (spi_is_busy(ili_cfg.iface)) {tight_loop_contents()}
+  while (spi_is_busy(ili_cfg.iface)) {tight_loop_contents();}
 
 /**********************
  *   GLOBAL FUNCTIONS
  **********************/
 
-/**** COMMAND/SPI *****/
+/**** SPI *****/
 
 /**
  * @brief Sends a command to the ILI9341.
@@ -157,6 +158,32 @@ void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t *params) {
   CS_DESELECT();
 }
 
+/**** COMMANDS *****/
+
+/**
+ * @brief Set the bounds of the image frame memory to write to.
+ * 
+ * @param x0 Column address start
+ * @param y0 Column end
+ * @param x1 Page address start
+ * @param y1 Page end
+ */
+void ili_frame_bounds(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+  ili9341_cmd_mparam(
+      ILI9341_COL_F_S, 4,
+      (uint8_t[4]){(x0 >> 8), (x0 & 0xff), (x1 >> 8), (x1 & 0xff)});
+  //ili_write_hwords((uint16_t[]) {x0,x1}, 2);// hword params
+  ili9341_cmd_mparam(
+      ILI9341_PGE_F_S, 4,
+      (uint8_t[4]){(y0 >> 8), (y0 & 0xff), (y1 >> 8), (y1 & 0xff)});
+  //ili_write_hwords((uint16_t[]) {y0,y1}, 2);// hword params
+  ili9341_cmd(ILI9341_W_MEM);
+}
+
+inline void ili_brightness(uint8_t br) {
+  ili9341_cmd_p(ILI9341_W_BRIGHT, br);
+}
+
 /**** DRAWING     *****/
 
 /**
@@ -172,22 +199,16 @@ void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t *params) {
  */
 void ili9341_bmp(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2,
                  uint16_t *bitmap) {
-
-  // prevent OOB (negative or >=240/320 coords.)
+  // Trunc. OOB.
   uint16_t x1 = _x1 < 0 ? 0 : _x1;
   uint16_t y1 = _y1 < 0 ? 0 : _y1;
   uint16_t x2 = _x2 > ILI9341_HOR - 1 ? ILI9341_HOR - 1 : _x2;
   uint16_t y2 = _y2 > ILI9341_VER - 1 ? ILI9341_VER - 1 : _y2;
-
+  dma_channel_set_trans_count(DMA_TX, (x2-x1+1)*(y2-y1+1)*2, false);
   SPI_WAIT_FREE();
-  ili_addr_win(x1, y1, x2, y2);
-  // todo: hardware rot ensure.
+  ili_frame_bounds(x1, y1, x2, y2);
   CS_SELECT();
-  dma_channel_configure(DMA_TX, &DMA_TX_CFG,
-                        &spi_get_hw(ili_cfg.iface)->dr, // dest
-                        bitmap,                        
-                        (x2-x1+1) * (y2-y1+1) * 2,
-                        true); // start asap
+  dma_channel_set_read_addr(DMA_TX, bitmap, true);
 }
 
 /**
@@ -207,7 +228,7 @@ void ili9341_bmp_blocking(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2
 }
 
 void ili9341_pixel(int x, int y, uint16_t color) {
-  ili_addr_win(x, y, x + 1, y + 1);
+  ili_frame_bounds(x, y, x + 1, y + 1);
   ili_write_hword(&color);
 }
 
@@ -295,7 +316,7 @@ void ili9341_init(void) {
   uint speed = spi_init(ili_cfg.iface, 62.5e6); // 16 bit spi
   // WE'RE RUNNING THIS BABY AT A MILLION MPH!
 #ifdef DEBUG
-  printf("spi speed %u", speed);
+  printf("Running SPI at actual speed: %u", speed);
 #endif
   spi_set_format(ili_cfg.iface, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
@@ -316,10 +337,12 @@ void ili9341_init(void) {
   // setup DMA for TX.
   DMA_TX = dma_claim_unused_channel(true);
   DMA_TX_CFG = dma_channel_get_default_config(DMA_TX);
+  // DMA: 8 bit chunk transfers over SPI
   channel_config_set_transfer_data_size(&DMA_TX_CFG, DMA_SIZE_8);
   channel_config_set_dreq(&DMA_TX_CFG, spi_get_dreq(ili_cfg.iface, true));
-
-  spi_get_hw(ili_cfg.iface);
+  dma_channel_configure(DMA_TX, &DMA_TX_CFG, 
+    &spi_get_hw(ili_cfg.iface)->dr, NULL,0,0
+  );
   // Hard & soft reset ILI.
   ili9341_hw_res();
   ili9341_cmd(ILI9341_SWRESET);
@@ -367,7 +390,6 @@ void ili9341_init(void) {
                          0x09,
                          0x00,
                      });
-
   // negative gamma
   ili9341_cmd_mparam(ILI9341_NGMMA_COR, 15,
                      (uint8_t[15]){
@@ -425,7 +447,7 @@ void ili9341_init(void) {
  * @brief Interrupt call - tells lvgl the flush is done when DMA has sent all
  * it's data.
  */
-static void irq1_dma_flush_ready() {
+static void lv_ili_flush_irq(void) {
   // prevent being stuck in IRQ
   dma_channel_acknowledge_irq1(DMA_TX);
   // sleep_us(10);
@@ -433,80 +455,38 @@ static void irq1_dma_flush_ready() {
   lv_disp_flush_ready(&driver);
 }
 
-/**
- * @brief Write a byte to the ILI9341.
- *
- * @param payload 8 bit sequence to write
- */
+/** Write a byte over SPI. Does not modify DC. */
 static inline void ili_write_byte(uint8_t payload) {
   CS_SELECT();
   spi_write_blocking(ili_cfg.iface, &payload, 1);
   CS_DESELECT();
 }
 
-static inline void ili_write_bytes(uint8_t *payload, int len) {
+/** Write `n` bytes over SPI. Does not modify DC. */
+static inline void ili_write_bytes(uint8_t *payload, int n) {
   CS_SELECT();
-  spi_write_blocking(ili_cfg.iface, payload, len);
+  spi_write_blocking(ili_cfg.iface, payload, n);
   CS_DESELECT();
 }
 
+/** Write a hword (16 bit/2 bytes) over SPI. Does not modify DC. */
 static inline void ili_write_hword(uint16_t *payload) {
-  CS_SELECT();
-  spi_write_blocking(ili_cfg.iface, (uint8_t *)payload, 2);
-  CS_DESELECT();
+  ili_write_bytes((uint8_t*) payload, 2);
 }
 
-static inline void ili_write_hwords(uint16_t *payload, int len) {
-  CS_SELECT();
-  spi_write_blocking(ili_cfg.iface, (uint8_t *)payload, 2 * len);
-  CS_DESELECT();
+/** Write `n` hwords (16 bit/2 bytes) over SPI. Does not modify DC. */
+static inline void ili_write_hwords(uint16_t *payload, int n) {
+  ili_write_bytes((uint8_t*) payload, 2*n);
 }
 
-/**
- * @brief Set column address start and page address start to occupy
- * part of the display.
- *
- * @param x0
- * @param y0
- * @param x1
- * @param y1
- */
-static void ili_addr_win(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
-  ili9341_cmd_mparam(
-      ILI9341_COL_F_S, 4,
-      (uint8_t[4]){(x0 >> 8), (x0 & 0xff), (x1 >> 8), (x1 & 0xff)});
-  ili9341_cmd_mparam(
-      ILI9341_PGE_F_S, 4,
-      (uint8_t[4]){(y0 >> 8), (y0 & 0xff), (y1 >> 8), (y1 & 0xff)});
-  ili9341_cmd(ILI9341_W_MEM); // we can start sending image data
-}
 
-volatile bool disp_flush_enabled = true;
-
-/* Enable updating the screen (the flushing process) when disp_flush() is called
- * by LVGL
- */
-void ili9341_enable_update(void) { disp_flush_enabled = true; }
-
-/* Disable updating the screen (the flushing process) when disp_flush() is
- * called by LVGL
- */
-void ili9341_disable_update(void) { disp_flush_enabled = false; }
-
-/**
- * @brief flush the incoming buffer `px_map` for `area` to the display via DMA.
- *
- * Flush finishes on interrupt
- *
- * @param disp
- * @param area
- * @param px_map
- */
-
+/** LVGL flush_cb function. Define LV_ILI_DRV_BLOCKING to perform sync. flush.*/
 static void ili_flush(lv_disp_drv_t *disp, const lv_area_t *area,
-                      lv_color16_t *px_map) {
-  if (!disp_flush_enabled || area->x2 < 0 || area->y2 < 0 ||
-      area->x1 > (ILI9341_HOR - 1) || area->y1 > (ILI9341_VER - 1)) {
+                      lv_color16_t *px_map) 
+{
+  if (area->x1 > (ILI9341_HOR - 1) || area->y1 > (ILI9341_VER - 1) || 
+      area->x2 < 0 || area->y2 < 0) 
+  {
     lv_disp_flush_ready(disp); // prevent dodgy input
     return;
   }
@@ -518,7 +498,7 @@ static void ili_flush(lv_disp_drv_t *disp, const lv_area_t *area,
     area->y2, 
     (uint16_t *)px_map
   );
-  // lv_ili_dma_handle(); will be called via interrupt.
+  // lv_ili_dma_handle will be called via interrupt.
   // lv_ili_dma_handle();
 #else
   ili9341_bmp_blocking(
