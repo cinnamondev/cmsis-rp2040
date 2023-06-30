@@ -40,3 +40,7 @@ This code is licensed under the [Apache 2.0 License](./LICENSE).
 
 
 clang format requires llvm (choco?)
+
+# linux
+
+todo: linux fix. Ninja selects wrong toolchain components? (bin objdump instead of arm-none-eabi-objdump)

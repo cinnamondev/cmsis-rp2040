@@ -132,5 +132,5 @@ Add-Content "CMakeLists.txt" $append
 
 $GeneratorArg = if ($NoNinja) {""} else {"-GNinja"}
 cmake $GeneratorArg -B . 
-ninja 
+if(!$NoNinja) {ninja}
 Set-Location $_T
