@@ -1,14 +1,12 @@
 solution:
-
   compiler: GCC
   misc:
-    # toolchain specific settings
-    - for-compiler: GCC
-      C:
-        - -std=gnu11
-      Link:
-        - --specs=nano.specs
-        - --specs=rdimon.specs
+     - for-compiler: GCC
+       C:
+         - -std=gnu11
+       Link:
+         - --specs=nano.specs
+         - --specs=rdimon.specs
   projects:
     - project: ./picopico.cproject.yaml
   target-types:

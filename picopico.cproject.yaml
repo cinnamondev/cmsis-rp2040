@@ -12,9 +12,12 @@ project:
     - component: LVGL::LVGL&LVGL:lvgl:Demo:Widgets@8.3.7
     - component: LVGL::LVGL&LVGL:lvgl:Extra Themes@8.3.7
     - component: GorgonMeducer::Utilities:perf_counter:Core&Library@2.1.0
+    - component: LVGL::LVGL&LVGL:lvgl:Libs BMP@8.3.7
   groups:
     - group: Source
       files:
         - file: ./src/main.c
         - file: ./src/display/ili9341.c
-
+        - file: ./src/display/tpcal.c
+  packs:
+    - pack: LVGL::lvgl@8.3.7

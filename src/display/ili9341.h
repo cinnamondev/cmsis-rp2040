@@ -1,11 +1,3 @@
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
-}
-#endif
-
 /**
  * @file ili9314.h
  *
@@ -15,19 +7,15 @@ extern "C" {
 extern "C" {
 #endif
 
-/*********************
- *      INCLUDES
- *********************/
+/* INCLUDES *******************************************************************/
+
 #include "lvgl.h"
-
-
 #include "hardware/spi.h"
+#include "tpcal.h"
 
-/*********************
- *      DEFINES
- *********************/
+/* DEFINES ********************************************************************/
 
-// commands [8.1]
+// ILI9341 command set
 // Standard command set (Level1  commands)
 #define ILI9341_NOP 0x00         // no operation
 #define ILI9341_SWRESET 0x01     // software reset
@@ -106,8 +94,7 @@ extern "C" {
 #define ILI9341_DGC1 0xE2
 #define ILI9341_DGC2 0xE3
 #define ILI9341_IFC 0xF6
-
-// extend register command
+// extended register cmd set
 #define ILI9341_PWRA 0xCB
 #define ILI9341_PWRB 0xCF
 #define ILI9341_DTCA 0xE8
@@ -117,6 +104,7 @@ extern "C" {
 #define ILI9341_E3G 0xF2
 #define ILI9341_PUMPRATIO 0xF7
 
+// Module consts.
 #define ILI9341_HOR 320
 #define ILI9341_VER 240
 
@@ -129,9 +117,25 @@ extern "C" {
 #define MADCTL_RGB 0x00
 #define MADCTL_MH 0x04
 
-/**********************
- *      TYPEDEFS
- **********************/
+// XPT related. See Table 4/5 for A2,A1,A0 parameters)
+// XPT measurement parameters (A2,A1,A0)
+#define XPT_MUX_X 0x50  /** X Position 0101 0000  1101*/
+#define XPT_MUX_Y 0x10  /** Y Position 0001 0000*/
+#define XPT_MUX_Z1 0x30 /** Cross panel (See figure 11) */
+#define XPT_MUX_Z2 0x40 /** Cross panel (See figure 11) */
+// Extended measurement parameters. XPT2046 has measurement modes that are not
+// normally implemented.
+
+#define XPT_MUX_TEMP0 0x00 /** Temperature naive measurement. (Page 18) */
+#define XPT_MUX_VBAT 0x20  /* VBAT pin measurement  (Page 19) */
+#define XPT_MUX_AUX 0x60   /** IN pin measurement (Page ?)*/
+#define XPT_MUX_TEMP1 0x70 /** Temperature 2C measurement. (Page 18) */
+
+#define XPT_MODE_8B 0x04
+#define XPT_SET_PB1 0x02
+#define XPT_SET_PB0 0x01
+
+/* TYPEDEF/STRUCTURES *********************************************************/
 
 enum rotation_t {
   R0 = 0,
@@ -144,73 +148,82 @@ enum rotation_t {
   R270F = MADCTL_MV | MADCTL_MX,
 };
 
-enum ___rotation_t {
-  _R0  = MADCTL_MV | MADCTL_MX | MADCTL_MY,
-  _R270= MADCTL_MX,
-  _R90 = MADCTL_MY,
-  _R180= MADCTL_MV | MADCTL_MX,
-}
-
-struct ili9341_cfg_t {
+/**
+ * @brief SPI bus configuration parameters. Pins should be set to valid pins
+ * on pico.
+ */
+struct ili_cfg_t {
   uint8_t rx;
   uint8_t tx;
   uint8_t sck;
-  uint8_t cs;
-  uint8_t dc;
-  uint8_t resx;
+  uint8_t ili_cs;
+  uint8_t ili_dc;
+  uint8_t ili_resx;
+  uint8_t xpt_irq;
+  uint8_t xpt_cs;
   spi_inst_t *iface;
 };
 
-/**********************
- * GLOBAL PROTOTYPES
- **********************/
+struct drv_module_t {
+  lv_disp_t* display;
+  lv_indev_t* touch;
+};
 
-void ili9341_init(void);
-/* Initialize low level display driver */
-void lv_ili9341_init(void);
+struct xpt_trans_t {
+  int32_t ax;
+  int32_t bx;
+  int32_t dx;
+  int32_t ay;
+  int32_t by;
+  int32_t dy;
+  bool calibrated;
+};
 
-/* Enable updating the screen (the flushing process) when disp_flush() is called
- * by LVGL
- */
-void disp_enable_update(void);
 
-/* Disable updating the screen (the flushing process) when disp_flush() is
- * called by LVGL
- */
-void disp_disable_update(void);
+/* STATIC PROTOTYPES **********************************************************/
 
-//
-void ili9341_init();
-void ili9341_write();
-void ili9341_write_blk();
-void ili9341_read();
+/* STATIC VARIABLES  **********************************************************/
 
-void ili9341_init(void);
+/* MACROS *********************************************************************/
 
-void ili9341_rotate(enum rotation_t r); // See ROTATE_ symbols.
+/* FUNCTIONS ******************************************************************/
 
-// SPI methods
+// shared
+void bus_config(struct ili_cfg_t cfg);
+void bus_init(void);
+void disp_module_init(void);
+struct drv_module_t lv_disp_init(void);
 
+// ili9341
 void ili9341_cmd(uint8_t cmd);
 void ili9341_param(uint8_t param);
 void ili9341_cmd_p(uint8_t cmd, uint8_t param);
-void ili9341_cmd_params(uint8_t cmd, int n, ...);
-
-void configure_ili9341(struct ili9341_cfg_t cfg);
-void ili9341_rotate(enum rotation_t r);
-
-void ili9341_sw_res();
-void ili9341_hw_res();
-
-void ili9341_pixel(int x, int y, uint16_t color);
-void ili9341_bmp(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1,
-                 uint16_t *bitmap);
-
 void ili9341_cmd_mparam(uint8_t cmd, int len, uint8_t *params);
-/**********************
- *      MACROS
- **********************/
+void ili9341_init(void);
+void ili_bounds(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+void dma_tx_isr(void);
+void ili9341_bmp(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2,
+                 uint16_t *bitmap);
+void ili9341_bmp_block(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2,
+                     uint16_t *bitmap);
+void ili9341_pixel(int x, int y, uint16_t color);
+void ili9341_hw_res();
+void ili9341_rotate(enum rotation_t r);
+lv_disp_t* lv_ili9341_init(void);
+void lv_ili_rotate(enum rotation_t r);
+
+//xpt2046
+lv_indev_t* lv_xpt2046_init(void);
+void xpt2046_init(void);
+void xpt2046_deaf_cmd(uint8_t cmd);
+void xpt2046_cmd(uint8_t cmd, uint16_t* output);
+bool xpt2046_touch();
+bool xpt2046_ispressed();
+void xpt2046_xyz(uint16_t *x, uint16_t *y);
+void xpt_tpcal(struct point_t p_disp[], struct point_t p_touch[]);
+
 
 #ifdef __cplusplus
 } /*extern "C"*/
 #endif
+

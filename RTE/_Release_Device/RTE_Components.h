@@ -26,6 +26,9 @@
 /* LVGL.LVGL::LVGL:lvgl:Extra Themes:8.3.7 */
 /*! \brief use extra themes, widgets and layouts */
 #define RTE_GRAPHICS_LVGL_USE_EXTRA_THEMES
+/* LVGL.LVGL::LVGL:lvgl:Libs BMP:8.3.7 */
+/*! \brief enable BMP support */
+#define LV_USE_BMP          1
 /* LVGL.LVGL::LVGL:lvgl:Libs GIF:8.3.7 */
 /*! \brief enable gif support */
 #define LV_USE_GIF         1
