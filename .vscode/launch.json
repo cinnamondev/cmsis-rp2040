@@ -26,7 +26,7 @@
             ],
             //"preLaunchTask": "Buildgen-Bootstrapper",
             // Builds new elf, hex, uf2, etc... before debug session.
-            "preLaunchTask": "Buildgen: Build [DEBUG]",
+            "preLaunchTask": "BUILDGEN & PROGRAM",
         },
         {
             "name": "Pico Debug (picopico)",

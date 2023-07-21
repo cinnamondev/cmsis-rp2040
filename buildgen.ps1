@@ -32,6 +32,30 @@ param (
 Invoke-Expression (Invoke-WebRequest -useb https://aka.ms/vcpkg-init.ps1)
 vcpkg activate
 
+$VCPKG_DIR = If(${Env:VCPKG_DOWNLOADS}) {${Env:VCPKG_DOWNLOADS}} else {
+    ${Env:VCPKG_ROOT} + "/downloads/"
+}
+Write-Host $VCPKG_DIR
+$GCC_TOOLCHAIN = Get-ChildItem "${VCPKG_DIR}artifacts/vcpkg-artifacts-arm/compilers.arm.arm.none.eabi.gcc" | Where-Object Name -match ".+-mpacbti" | Select-Object -First 1
+Write-Host $GCC_TOOLCHAIN
+#$GCC_TOOLCHAIN = 
+#$AC6_TOOLCHAIN = ""
+
+$end = If ($IsWindows) {".exe"} else {""}
+"# Generated toolchain paths. hopefully will resolve any environment issues.
+set(CMAKE_AR                    `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-ar${end}`")
+set(CMAKE_ASM_COMPILER          `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-as${end}`")
+set(CMAKE_C_COMPILER            `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-gcc${end}`")
+set(CMAKE_CXX_COMPILER          `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-g++${end}`")
+set(CMAKE_LINKER                `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-ld${end}`")
+set(CMAKE_OBJCOPY               `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-objcopy${end}`")
+set(CMAKE_RANLIB                `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-ranlib${end}`")
+set(CMAKE_SIZE                  `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-size${end}`")
+set(CMAKE_STRIP                 `"${GCC_TOOLCHAIN}/bin/arm-none-eabi-strip${end}`")
+".Replace('\','/') | Set-Content "./build/.tmp/target_rp2040_asm.cmake"
+
+#Exit
+
 # Find solution file
 $SOLUTION = @(Get-ChildItem -Filter "*.csolution.yaml")[0] # TODO: detect many csolutions?
 if(!$SOLUTION) {$SOLUTION = @(Get-ChildItem -Filter "*.csolution.yml")[0]}
@@ -131,6 +155,6 @@ pico_add_extra_outputs(`${TARGET})
 Add-Content "CMakeLists.txt" $append 
 
 $GeneratorArg = if ($NoNinja) {""} else {"-GNinja"}
-cmake $GeneratorArg -B . 
+cmake $GeneratorArg -B . -DCMAKE_TOOLCHAIN_FILE=../../../.tmp/target_rp2040_asm.cmake
 if(!$NoNinja) {ninja}
 Set-Location $_T
