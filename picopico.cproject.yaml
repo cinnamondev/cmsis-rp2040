@@ -18,6 +18,7 @@ project:
       files:
         - file: ./src/main.c
         - file: ./src/display/ili9341.c
-        - file: ./src/display/tpcal.c
+        - file: ./src/tpcal/tpcal.c
+        - file: ./src/tpcal/screen.c
   packs:
     - pack: LVGL::lvgl@8.3.7

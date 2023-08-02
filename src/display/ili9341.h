@@ -11,7 +11,6 @@ extern "C" {
 
 #include "lvgl.h"
 #include "hardware/spi.h"
-#include "tpcal.h"
 
 /* DEFINES ********************************************************************/
 
@@ -165,8 +164,8 @@ struct ili_cfg_t {
 };
 
 struct drv_module_t {
-  lv_disp_t* display;
-  lv_indev_t* touch;
+  lv_disp_drv_t* display;
+  lv_indev_drv_t* touch;
 };
 
 struct xpt_trans_t {
@@ -209,19 +208,17 @@ void ili9341_bmp_block(uint16_t _x1, uint16_t _y1, uint16_t _x2, uint16_t _y2,
 void ili9341_pixel(int x, int y, uint16_t color);
 void ili9341_hw_res();
 void ili9341_rotate(enum rotation_t r);
-lv_disp_t* lv_ili9341_init(void);
+lv_disp_drv_t* lv_ili9341_init(void);
 void lv_ili_rotate(enum rotation_t r);
 
 //xpt2046
-lv_indev_t* lv_xpt2046_init(void);
+lv_indev_drv_t* lv_xpt2046_init(void);
 void xpt2046_init(void);
 void xpt2046_deaf_cmd(uint8_t cmd);
 void xpt2046_cmd(uint8_t cmd, uint16_t* output);
 bool xpt2046_touch();
 bool xpt2046_ispressed();
 void xpt2046_xyz(uint16_t *x, uint16_t *y);
-void xpt_tpcal(struct point_t p_disp[], struct point_t p_touch[]);
-
 
 #ifdef __cplusplus
 } /*extern "C"*/

@@ -16,7 +16,7 @@
 
 /* INCLUDES *******************************************************************/
 
-#include "tpcal.h"
+#include "hardware/spi.h"
 #include "ili9341.h"
 
 #include "hardware/dma.h"
@@ -24,6 +24,7 @@
 #include "lvgl.h"
 #include "pico/time.h"
 
+#include <stdint.h>
 #include <stdio.h>
 /* DEFINES ********************************************************************/
 
@@ -56,6 +57,7 @@ static void xpt_roll_avg(uint16_t *x, uint16_t *y, uint16_t* n);
 static void xpt_correct(uint16_t *x, uint16_t *y);
 static void save_coef_ifemp(void);
 static bool try_load_coef(void);
+static void __not_in_flash_func(spi_generic_write8_read16_blk)(spi_inst_t *spi, const uint8_t *src, uint16_t *dst);
 
 /* STATIC VARIABLES  **********************************************************/
  
@@ -449,7 +451,7 @@ void ili9341_rotate(enum rotation_t r) {
  * 
  * @return lv_disp_drv_t* Pointer to the registered display driver.
  */
-lv_disp_t* lv_ili9341_init(void) {
+lv_disp_drv_t* lv_ili9341_init(void) {
   //lv_disp_drv_t LV_ILI_DRV; // Driver *can* be local but 
   ili9341_init();
 
@@ -472,7 +474,7 @@ lv_disp_t* lv_ili9341_init(void) {
   irq_set_enabled(DMA_IRQ_1, true);
 #endif
 
-  return   lv_disp_drv_register(&LV_ILI_DRV);
+  return &LV_ILI_DRV;
 }
 
 /**
@@ -550,7 +552,7 @@ static inline void _ili_write_hwords(uint16_t *payload, int n) {
 }
 
 lv_indev_t* indev_touchpad;
-lv_indev_t* lv_xpt2046_init(void) {
+lv_indev_drv_t* lv_xpt2046_init(void) {
   /**
    * Here you will find example implementation of input devices supported by
    * LittelvGL:
@@ -568,7 +570,7 @@ lv_indev_t* lv_xpt2046_init(void) {
   lv_indev_drv_init(&LV_XPT_INDEV_DRV);
   LV_XPT_INDEV_DRV.type = LV_INDEV_TYPE_POINTER;
   LV_XPT_INDEV_DRV.read_cb = lv_xpt_read;
-  return lv_indev_drv_register(&LV_XPT_INDEV_DRV);
+  return &LV_XPT_INDEV_DRV;
 }
 
 /**********************
@@ -603,7 +605,7 @@ void xpt2046_init(void) {
  * @param cmd command to write
  */
 void xpt2046_deaf_cmd(uint8_t cmd) {
-  cmd |= 0x8; // ensure control bit is high
+  cmd |= 0x80;
   SPI_WAIT_FREE();
   spi_set_baudrate(spi_cfg.iface, SPEED_XPT);
   XPT_SEL();
@@ -623,12 +625,26 @@ void xpt2046_deaf_cmd(uint8_t cmd) {
  * @param out Conversion result (Shifted according to MODE.)
  */
 void xpt2046_cmd(uint8_t cmd, uint16_t* output) {
+  // we have written ourselves into a pickle here. for each byte sent in 8 bit,
+  // we read 1 byte... so theory says we can write to 16 bit with a cast- but then
+  // we will advance out the bounds of the 16 bit value as the word size is 32 bit.
+  // in order to do this with 8 bit, we need to store a RESLOW & RESHI and then
+  // push that to output. for now... we enable 16 bit mode temporarily, as this is
+  // polled relatively infrequently.
+
+  uint16_t _cmd = cmd; // XXXX XXXX 0000 0000 (zeros are read portion)
+  _cmd |= 0x80;
   SPI_WAIT_FREE();
   spi_set_baudrate(spi_cfg.iface, SPEED_XPT);
+  spi_set_format(spi_cfg.iface, 16, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
   XPT_SEL();
-  spi_write_read_blocking(spi_cfg.iface, &cmd, (uint8_t*)output, 2);
-  XPT_DESEL();
+  //spi_generic_write8_read16_blk(spi_cfg.iface, &cmd, output);
+  //spi_write_read_blocking(spi_inst_t *spi, , (uint8_t*)&output, 2)
+  spi_write16_read16_blocking(spi_cfg.iface, &_cmd, output, 1);
+  *output = *output >> 4;
+  XPT_DESEL();  
   spi_set_baudrate(spi_cfg.iface, SPEED_ILI);
+  spi_set_format(spi_cfg.iface, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
   //if (cmd & 0X08) { // is MODE high?
   //  return (output >> 8); // 0b00000000XXXXXXXX (8 bit result)
   //} else {
@@ -644,13 +660,14 @@ void xpt2046_cmd(uint8_t cmd, uint16_t* output) {
  */
 bool xpt2046_touch() {
   uint16_t z1,z2;
+  xpt2046_deaf_cmd(XPT_MUX_Z1 | XPT_SET_PB0 | XPT_SET_PB1);
   xpt2046_cmd(XPT_MUX_Z1 | XPT_SET_PB0 | XPT_SET_PB1, &z1);
   xpt2046_cmd(XPT_MUX_Z2 | XPT_SET_PB0 | XPT_SET_PB1, &z2);
 #ifdef DEBUG
-  printf("touched? z1 %d z2 %d expr. %d t %d \n", z1, z2, (z1 - z2), (z1-z2)<4000);
+  printf("touched? z1 %d z2 %d expr. %d t %d %d \n", z1, z2, (z1 - z2), (z1-z2)<400, (z1-z2)>600);
 #endif
   //return true;
-  return (z1-z2)<4000;
+  return (z1-z2)<400 || (z1-z2)>600;
 }
 
 /**
@@ -676,7 +693,7 @@ bool xpt2046_ispressed() {
  * @param y Y Coordinate (12 bit)
  */
 void xpt2046_xyz(uint16_t *x, uint16_t *y) {
-  //xpt2046_cmd(XPT_MUX_X | XPT_SET_PB0 | XPT_SET_PB1, NULL);
+  //xpt2046_deaf_cmd(XPT_MUX_X | XPT_SET_PB0 | XPT_SET_PB1);
   xpt2046_cmd(XPT_MUX_X | XPT_SET_PB0 | XPT_SET_PB1,x);
   xpt2046_cmd(XPT_MUX_Y | XPT_SET_PB0 | XPT_SET_PB1, y);
 #ifdef DEBUG
@@ -688,142 +705,14 @@ void xpt2046_xyz(uint16_t *x, uint16_t *y) {
 static void lv_xpt_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data) {
   static uint16_t x = 0;   // Initial / Previous coords.
   static uint16_t y = 0;
-  static uint16_t n = 0;
   /*Save the pressed coordinates and the state*/
-  if (xpt2046_ispressed()) {
+  if (xpt2046_touch()) {
     xpt2046_xyz(&x,&y);
-    xpt_roll_avg(&x,&y, &n);       // Update via rolling average
     data->state = LV_INDEV_STATE_PRESSED;
   } else {
-    n=0;
     data->state = LV_INDEV_STATE_RELEASED;
   }
-  // ensure update
+  // If released, the coordinates will remain at the last pressed point.
   data->point.x = x;
   data->point.y = y;
-}
-
-/**
- * @brief Takes new coordinates and stores a rolling average 
- * 
- * @param x
- * @param y 
- * @param n 
- */
-static void xpt_roll_avg(uint16_t *x, uint16_t *y, uint16_t* n) {
-  static int16_t buf_x[10];
-  static int16_t buf_y[10];
-
-  for (int i = 9; i > 0; i--) {
-    buf_x[i] = buf_x[i-1];  // Shift to make room for latest value.
-    buf_y[i] = buf_y[i-1];
-  }
-  // new sample incoming! n is reset externally (on rel.)
-  if ((*n) < 10) (*n)++;
-
-  int32_t s_x= 0;
-  int32_t s_y = 0;
-  for(int i = 0; i < 10 ; i++) {
-      s_x += buf_x[i];
-      s_y += buf_y[i];
-  }
-
-  *x = s_x / *n;
-  *y = s_y / *n;
-}
-
-/**
- * @brief Apply calibration parameters (if set)
- *
- *
- * @param x 
- * @param y 
- */
-static void xpt_correct(uint16_t *x, uint16_t *y) {
-  bool tmp_rotation_swap = false;
-  bool tmp_rotation_invert_x = false;
-  bool tmp_rotation_invert_y = false;
-
-  if (tmp_rotation_swap) {    // X and Y swap? (Display rotation off-axis)
-    int16_t tmp = *x;
-    *x = *y;
-    *y = tmp;
-  }
-  if (tmp_rotation_invert_x) {
-
-  }
-  // Set xpt_coef through calibration function or loader function to use
-  // transformation matrix.
-  if (xpt_coef.calibrated) {
-    *x = xpt_coef.ax * (*x) + xpt_coef.bx * (*y) + xpt_coef.dx;
-    *y = xpt_coef.ay * (*x) + xpt_coef.by * (*y) + xpt_coef.dy;
-  }
-}
-
-/**
- * @brief Calibrate the display, by accepting `n` coordinates from the display
- * and touchscreen
- *
- * Both parameters must have a width of `3` points, as we are using a 3 point
- * calibration algorithm.
- * 
- * @param coords_disp 3 display coordinates
- * @param coords_touch 3 coordinates read from touchscreen
- */
-void xpt_tpcal(struct point_t p_disp[], struct point_t p_touch[]) {
-  //if (try_load_coef()) return;
-
-  uint32_t determinant =  // det(A) A is 3x3 inptu matrix (z=1 all)
-      (p_touch[0].x - p_touch[2].x) * (p_touch[1].y - p_touch[2].y) -
-      (p_touch[1].x - p_touch[2].x) * (p_touch[0].y - p_touch[2].y);
-
-  // I would refer to `Definitions for Equation 8` when looking at this in the
-  // TI/Analog AN for this. (check docs for refs.). (a,b,d)(x,y) are co-effs.
-  // of a transformation to account for any misallignment in both directions.
-  // It also corrects for scale, so we either need to load calibration from
-  // flash ASAP or, failing that, run the tpcal.
-  xpt_coef.ax = ((p_disp[0].x - p_disp[2].x) * (p_touch[1].y - p_touch[2].y) -
-                 (p_disp[1].x - p_disp[2].x) * (p_touch[0].y - p_touch[2].y)) /
-                determinant;
-  xpt_coef.bx = ((p_touch[0].x - p_touch[2].x) * (p_disp[1].x - p_disp[2].x) -
-                 (p_touch[1].x - p_touch[2].x) * (p_disp[0].x - p_disp[2].x)) /
-                determinant;
-  xpt_coef.dx =
-      ((p_disp[0].x) *
-           ((p_touch[1].x * p_touch[2].y) - (p_touch[2].x * p_touch[1].y)) -
-       (p_disp[1].x) *
-           ((p_touch[0].x * p_touch[2].y) - (p_touch[2].x * p_touch[0].y)) +
-       (p_disp[2].x) *
-           ((p_touch[0].x * p_touch[1].y) - (p_touch[1].x * p_touch[0].y))) /
-      determinant;
-  xpt_coef.ay = ((p_disp[0].y - p_disp[2].y) * (p_touch[1].y - p_touch[2].y) -
-                 (p_disp[1].y - p_disp[2].y) * (p_touch[0].y - p_touch[2].y)) /
-                determinant;
-  xpt_coef.by = ((p_touch[0].x - p_touch[2].x) * (p_disp[1].y - p_disp[2].y) -
-                 (p_touch[1].x - p_touch[2].x) * (p_disp[0].y - p_disp[2].y)) /
-                determinant;
-  xpt_coef.dy =
-      ((p_disp[0].y) *
-           ((p_touch[1].x * p_touch[2].y) - (p_touch[2].x * p_touch[1].y)) -
-       (p_disp[1].y) *
-           ((p_touch[0].x * p_touch[2].y) - (p_touch[2].x * p_touch[0].y)) +
-       (p_disp[2].y) *
-           ((p_touch[0].x * p_touch[1].y) - (p_touch[1].x * p_touch[0].y))) /
-      determinant;
-  xpt_coef.calibrated = true;
-
-  //save_coef_ifemp();
-}
-
-
-static void save_coef_ifemp(void) {
-  // save xpt_coef to flash! we have a 4k block we can use for config.
-  panic("not implemented");
-}
-
-static bool try_load_coef(void) {
-  // load xpt_coef from flash! returns a bool if it succeeds or fails.
-  // if it fails, we fallback to tpcal.
-  panic("not implemented");
-  return false;
 }
