@@ -27,6 +27,7 @@
 #include "pico/platform.h"
 #include "screen.h"
 #include "lvgl.h"
+#include "src/hal/lv_hal_indev.h"
 /* DEFINES ********************************************************************/
 
 // LVGL position of each calibration point 
@@ -104,6 +105,7 @@ void tpcal_register(lv_indev_drv_t *indev) {
     state = TPCAL_INIT;
     indev->user_data = indev->read_cb;
     indev->read_cb = lv_tpcal_read_cb;
+    lv_indev_drv_register(indev);
 }
 
 
@@ -117,7 +119,7 @@ void tpcal_nvs_load(void (*cb)(void)) {
 void tpcal_calib(void (*cb)(void)) {
     state = TPCAL_CALIB;
     cb_onready = cb;
-    tpcal_scr_create(&TPCAL_PNT_XY1, cb_onready, calib_rst, anim_unblock);
+    tpcal_scr_create( &TPCAL_PNT_XY1, cb_onready, calib_rst, anim_unblock);
 }
 
 
@@ -144,7 +146,7 @@ static void calib_rst(void) {
     tpcal_scr_destroy();
     tpcal_scr_create(&TPCAL_PNT_XY1, cb_onready, calib_rst, anim_unblock);
 }
-static volatile bool allow_input = false;
+static volatile bool allow_input = true;
 static void anim_unblock(lv_anim_t* a) {
     allow_input = true;
 }
@@ -164,30 +166,33 @@ static void lv_tpcal_read_cb(lv_indev_drv_t* indev, lv_indev_data_t* data) {
 
     // Execute driver callback internally. This is not "seen" by lvgl but makes
     // integration easier.
+
     ((void (*)(lv_indev_drv_t*, lv_indev_data_t*))indev->user_data)(indev,
                                                                     data);
 
     // containers for touch and display points
     static lv_point_t p_touch[3];
-    static uint8_t n = 0;
     static lv_point_t p_disp[] = {TPCAL_PNT_XY1, TPCAL_PNT_XY2, TPCAL_PNT_XY3};
 
     switch (state) {
       case TPCAL_CALIB:;
+        uint8_t n = 0;
         while (data->state == LV_INDEV_STATE_PRESSED) {
           // Collect another display sample.
+          printf("collecting sample tpcal");
           ((void (*)(lv_indev_drv_t*, lv_indev_data_t*))indev->user_data)(indev,
                                                                           data);
           tpcal_roll_avg(&(data->point.x), &(data->point.y), &n);
         }
-        n = 0;
         if (c_prev_state == LV_INDEV_STATE_PRESSED) {
+          printf("sample collected tpcal submit");
           // Submit on falling edge
           p_touch[c_n_p] = (lv_point_t){.x = data->point.x, .y = data->point.y};
           tpcal_set_point(p_disp[c_n_p]);
           c_n_p++;
           if (c_n_p == 2) {  // all 3 points recorded.
             c_n_p = 0;
+            printf("complete tpcal complete tpcal complete tpcal state comp.");
             trans_coef_calc(p_touch);
             tpcal_scr_state_complete();  // display ui elements  tele
             state = TPCAL_READY;
@@ -210,6 +215,45 @@ static void lv_tpcal_read_cb(lv_indev_drv_t* indev, lv_indev_data_t* data) {
         break;
       default:
         printf("TPCAL Driver Unknown State");
+        break;
+    }
+}
+
+
+static void __lv_tpcal_read_cb(lv_indev_drv_t* indev, lv_indev_data_t* data) {
+    // containers for touch and display points
+    static lv_point_t p_touch[3];
+    static lv_point_t p_disp[] = {TPCAL_PNT_XY1, TPCAL_PNT_XY2, TPCAL_PNT_XY3};
+    static uint8_t n_avg = 0;
+
+    static bool samples_collected = false;
+    if (!allow_input) return;
+
+    // Execute driver callback for base indev.
+    ((void (*)(lv_indev_drv_t*, lv_indev_data_t*))indev->user_data)(indev,
+                                                                    data);
+
+    switch (state) {
+      case TPCAL_CALIB:
+        // Look at state of data and update accordingly.
+        if (data->state == LV_INDEV_STATE_PRESSED) {
+          tpcal_roll_avg(&(data->point.x), &(data->point.y), &n_avg);
+          samples_collected = true;
+        } else if (samples_collected) {
+          // Submit on falling edge
+          p_touch[c_n_p] = (lv_point_t){.x = data->point.x, .y = data->point.y};
+          tpcal_set_point(p_disp[c_n_p++]); // Set to next point in sequence
+          samples_collected = false; // reset state
+        }
+        break;
+      case TPCAL_READY:
+        // Use rolling average and apply coef.
+        if (data->state == LV_INDEV_STATE_PRESSED) {
+          tpcal_roll_avg(&(data->point.x), &(data->point.y), &n_avg);
+        }
+        break;
+      case TPCAL_INIT:
+        printf("Unitialized TPCAL. requires loading calib param");
         break;
     }
 }
