@@ -17,5 +17,6 @@
 ],
   "C_Cpp_Runner.showCompilationTime": false,
   "git.detectSubmodules": false,
+  "editor.tabSize": 2,
 
 }
