@@ -33,3 +33,6 @@
 
 build/
 .clangd
+.cbuild.yml
+.cbuild-idx.yml
+.cprj
